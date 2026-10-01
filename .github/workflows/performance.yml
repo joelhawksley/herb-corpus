@@ -5,8 +5,7 @@ on:
     inputs:
       versions:
         description: "Space-separated Herb versions to compare (oldest first)"
-        required: false
-        default: "0.10.4 0.11.0"
+        required: true
         type: string
 
 permissions:
@@ -34,7 +33,7 @@ jobs:
 
       - name: Install Herb versions
         env:
-          VERSIONS: ${{ inputs.versions || '0.10.4 0.11.0' }}
+          VERSIONS: ${{ inputs.versions }}
         run: |
           for version in $VERSIONS; do
             gem install herb -v "$version" --no-document
@@ -42,7 +41,7 @@ jobs:
 
       - name: Measure and compare
         env:
-          VERSIONS: ${{ inputs.versions || '0.10.4 0.11.0' }}
+          VERSIONS: ${{ inputs.versions }}
         run: |
           set -euo pipefail
 
