@@ -91,6 +91,7 @@ bin/corpus remove    Remove an app's submodule and checkout
 bin/corpus extract   Copy the .erb files into erb/ with a provenance manifest
 bin/corpus stats     Print corpus totals, or refresh the generated block in this README
 bin/corpus measure   Run Herb versions over the corpus and diff the results
+bin/corpus performance Compare production ActionView compilation against Erubi
 ```
 
 Every command takes an optional list of app names to work on a subset, and `--help` for its own
@@ -184,10 +185,12 @@ than only by opening a pull request:
 
 | | |
 | --- | --- |
-| `bin/corpus` | management CLI — clone, update, drift, extract, stats, measure |
+| `bin/corpus` | management CLI — clone, update, drift, extract, stats, measure, performance |
 | `bin/check` | consistency checks across `.gitmodules`, `corpus.yml`, and `erb/MANIFEST.json` |
 | `bin/measure-herb` | measure one Herb version against the corpus |
 | `bin/diff-runs` | compare two measurement runs |
+| `bin/measure-action-view` | compare one Herb version with Erubi using ActionView's production configuration |
+| `bin/diff-performance-runs` | compare two normalized ActionView performance runs |
 | `bin/drift-report` | turn `corpus drift --json` into step outputs and annotations |
 | `bin/render-pr-body` | build the weekly pin-update pull request body |
 
@@ -197,9 +200,10 @@ bundle exec bin/check     # what CI checks
 bundle exec yerba check   # what CI checks about formatting
 ```
 
-Only `bin/corpus` and `bin/check` need a gem, and only Yerba. `bin/diff-runs`, `bin/drift-report`,
-and `bin/render-pr-body` are Ruby stdlib only, so Herb's CI can compare a branch against a release
-with nothing installed beyond a corpus checkout.
+The management commands in `bin/corpus` and `bin/check` need only Yerba. `bin/diff-runs`,
+`bin/diff-performance-runs`, `bin/drift-report`, and `bin/render-pr-body` are Ruby stdlib only.
+The measurement commands resolve the Herb version under test themselves;
+`bin/measure-action-view` additionally needs ActionView 8.1.4.
 
 **Herb is deliberately not in the Gemfile.** The version under measurement is swapped per run —
 `bin/measure-herb` takes either an installed gem version or a working tree, and Herb's CI measures
@@ -975,6 +979,41 @@ Three things make the comparison trustworthy:
 `.github/workflows/measure.yml` tracks released versions weekly. Herb's own CI runs
 `bin/measure-herb --gem-path .` against the last release on every pull request and fails on
 regressions — that check belongs where the code changes.
+
+## Measuring production ActionView compilation
+
+```sh
+gem install actionview -v 8.1.4
+gem install herb -v 0.10.4
+gem install herb -v 0.11.0
+
+bundle exec bin/corpus performance \
+  --herb 0.10.4 \
+  --herb 0.11.0 \
+  --fail-on-regression
+
+bundle exec bin/corpus performance \
+  --herb 0.11.0 \
+  --gem-path ../herb \
+  --fail-on-regression
+```
+
+`performance` compiles templates through the production ActionView Erubi handler and the
+equivalent production Herb handler. It first finds the files that Erubi and every requested Herb
+version can compile, then measures that exact shared set for every version. Sources are loaded
+before timing, each engine gets one warmup and five measured corpus passes, engine order
+alternates, and the median Herb/Erubi ratio is recorded in JSON under `runs/action-view/`.
+
+The comparison fails only when the newer version's normalized Herb/Erubi ratio is more than 5%
+worse than the older version:
+
+```
+new ratio > old ratio × 1.05
+```
+
+The report also shows progress against an absolute budget of 7× Erubi, but that number is
+informational and never affects the exit status. `.github/workflows/performance.yml` runs this
+comparison weekly and uploads the screening and measurement artifacts.
 
 ## Pinning
 
