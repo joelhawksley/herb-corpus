@@ -80,18 +80,18 @@ are not at the tip of their branch, and a shallow fetch cannot reach them.
 ## The CLI
 
 ```
-bin/corpus setup     Apply the local git settings a fresh checkout wants
-bin/corpus clone     Clone the apps that are not checked out yet (ERB-only by default)
-bin/corpus update    Move each pin to the tip of its tracked branch
-bin/corpus status    Show each app's pin, checkout state, and drift
-bin/corpus drift     Report which pins are behind their branch (no checkout needed)
-bin/corpus list      List apps with repo, branch, .erb count, and license
-bin/corpus add       Add a new app as a submodule and stub its manifest entry
-bin/corpus remove    Remove an app's submodule and checkout
-bin/corpus extract   Copy the .erb files into erb/ with a provenance manifest
-bin/corpus stats     Print corpus totals, or refresh the generated block in this README
-bin/corpus measure   Run Herb versions over the corpus and diff the results
-bin/corpus performance Compare production ActionView compilation against Erubi
+bin/corpus setup        Apply the local git settings a fresh checkout wants
+bin/corpus clone        Clone the apps that are not checked out yet (ERB-only by default)
+bin/corpus update       Move each pin to the tip of its tracked branch
+bin/corpus status       Show each app's pin, checkout state, and drift
+bin/corpus drift        Report which pins are behind their branch (no checkout needed)
+bin/corpus list         List apps with repo, branch, .erb count, and license
+bin/corpus add          Add a new app as a submodule and stub its manifest entry
+bin/corpus remove       Remove an app's submodule and checkout
+bin/corpus extract      Copy the .erb files into erb/ with a provenance manifest
+bin/corpus stats        Print corpus totals, or refresh the generated block in this README
+bin/corpus measure      Run Herb versions over the corpus and diff the results
+bin/corpus performance  Compare production ActionView compilation against Erubi
 ```
 
 Every command takes an optional list of app names to work on a subset, and `--help` for its own
