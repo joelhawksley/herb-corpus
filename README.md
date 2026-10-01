@@ -1013,7 +1013,7 @@ new ratio > old ratio × 1.05
 
 The report also shows progress against an absolute budget of 7× Erubi, but that number is
 informational and never affects the exit status. `.github/workflows/performance.yml` runs this
-comparison weekly and uploads the screening and measurement artifacts.
+comparison on demand and uploads the screening and measurement artifacts.
 
 ## Pinning
 
