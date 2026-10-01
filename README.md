@@ -189,7 +189,7 @@ than only by opening a pull request:
 | `bin/check` | consistency checks across `.gitmodules`, `corpus.yml`, and `erb/MANIFEST.json` |
 | `bin/measure-herb` | measure one Herb version against the corpus |
 | `bin/diff-runs` | compare two measurement runs |
-| `bin/measure-action-view` | compare one Herb version with Erubi using ActionView's production configuration |
+| `bin/measure-action-view` | compare one Herb version with Erubi using Rails main's production configuration |
 | `bin/diff-performance-runs` | compare two normalized ActionView performance runs |
 | `bin/drift-report` | turn `corpus drift --json` into step outputs and annotations |
 | `bin/render-pr-body` | build the weekly pin-update pull request body |
@@ -202,14 +202,14 @@ bundle exec yerba check   # what CI checks about formatting
 
 The management commands in `bin/corpus` and `bin/check` need only Yerba. `bin/diff-runs`,
 `bin/diff-performance-runs`, `bin/drift-report`, and `bin/render-pr-body` are Ruby stdlib only.
-The measurement commands resolve the Herb version under test themselves;
-`bin/measure-action-view` additionally needs ActionView 8.1.4.
+The measurement commands resolve the Herb version under test themselves. ActionView comes from
+Rails main through the Gemfile, with its locked revision updated by Dependabot.
 
-**Herb is deliberately not in the Gemfile.** The version under measurement is swapped per run —
-`bin/measure-herb` takes either an installed gem version or a working tree, and Herb's CI measures
-the last release against the branch in the same job. A Gemfile entry would pin one version for
-both and silently compare a branch against itself, so the measurement scripts run with
-`BUNDLE_GEMFILE` cleared and resolve Herb themselves.
+**Herb is deliberately not a direct Gemfile dependency.** Rails main brings a released Herb
+version transitively so Bundler can resolve ActionView, but the version under measurement is
+swapped per run. The measurement scripts run with `BUNDLE_GEMFILE` cleared and explicitly load
+either the requested installed Herb version or a working tree, so a locked transitive version
+cannot make a comparison silently measure the same Herb twice.
 
 ## Who uses Herb
 
@@ -983,7 +983,7 @@ regressions — that check belongs where the code changes.
 ## Measuring production ActionView compilation
 
 ```sh
-gem install actionview -v 8.1.4
+bundle install
 gem install herb -v 0.10.4
 gem install herb -v 0.11.0
 
@@ -998,11 +998,11 @@ bundle exec bin/corpus performance \
   --fail-on-regression
 ```
 
-`performance` compiles templates through the production ActionView Erubi handler and the
-equivalent production Herb handler. It first finds the files that Erubi and every requested Herb
-version can compile, then measures that exact shared set for every version. Sources are loaded
-before timing, each engine gets one warmup and five measured corpus passes, engine order
-alternates, and the median Herb/Erubi ratio is recorded in JSON under `runs/action-view/`.
+`performance` compiles templates through Rails main's production ActionView Erubi and Herb
+handlers. It first finds the files that Erubi and every requested Herb version can compile, then
+measures that exact shared set for every version. Sources are loaded before timing, each engine
+gets one warmup and five measured corpus passes, engine order alternates, and the median
+Herb/Erubi ratio is recorded in JSON under `runs/action-view/`.
 
 The comparison fails only when the newer version's normalized Herb/Erubi ratio is more than 5%
 worse than the older version:

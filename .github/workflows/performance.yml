@@ -28,9 +28,6 @@ jobs:
         with:
           bundler-cache: true
 
-      - name: Install benchmark dependencies
-        run: gem install actionview -v 8.1.4 --no-document
-
       - name: Install Herb versions
         env:
           VERSIONS: ${{ inputs.versions }}

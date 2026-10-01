@@ -27,7 +27,7 @@ abort "--absolute-budget must be positive" unless absolute_budget.positive?
 before = JSON.parse(File.read(before_path))
 after = JSON.parse(File.read(after_path))
 
-%w[metric corpus_commit shared_files_sha256 files_shared actionview_version ruby_version round_count warmup_count].each do |key|
+%w[metric corpus_commit shared_files_sha256 files_shared actionview_version actionview_ref ruby_version round_count warmup_count].each do |key|
   next if before[key] == after[key]
 
   abort "runs differ on #{key} (#{before[key].inspect} vs #{after[key].inspect}); they are not comparable"
@@ -48,7 +48,9 @@ format_ratio = ->(value) { format("%.2fx", value) }
 format_percent = ->(value) { format("%+.1f%%", value * 100) }
 
 puts "#{before["label"]}  ->  #{after["label"]}"
-puts "#{after["files_shared"]} files, ActionView #{after["actionview_version"]}, Ruby #{after["ruby_version"]}"
+actionview_ref = after["actionview_ref"]&.slice(0, 8)
+actionview_label = [after["actionview_version"], actionview_ref].compact.join("@")
+puts "#{after["files_shared"]} files, ActionView #{actionview_label}, Ruby #{after["ruby_version"]}"
 puts
 puts format("%-24s %12s %12s", "", before["label"], after["label"])
 puts format("%-24s %12s %12s", "-" * 24, "-" * 12, "-" * 12)

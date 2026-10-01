@@ -3,8 +3,8 @@
 
 # Measures production-configured ActionView compilation with Herb and Erubi.
 #
-#   bin/measure-action-view --version 0.11.0 --out runs/action-view/0.11.0.json
-#   bin/measure-action-view --version 0.11.0 --screen-out runs/action-view/0.11.0-screen.json
+# Normally invoked through `bin/corpus performance`, which supplies the locked
+# Rails main component paths while this process selects the requested Herb.
 
 require "json"
 require "optparse"
@@ -15,7 +15,9 @@ options = {
   root: File.expand_path("../erb", __dir__),
   version: nil,
   gem_path: nil,
-  actionview_version: ENV.fetch("ACTIONVIEW_VERSION", "8.1.4"),
+  actionview_path: ENV["ACTIONVIEW_PATH"],
+  activesupport_path: ENV["ACTIVESUPPORT_PATH"],
+  actionview_ref: ENV["ACTIONVIEW_REF"],
   label: nil,
   rounds: 5,
   warmups: 1,
@@ -29,7 +31,9 @@ OptionParser.new do |parser|
   parser.banner = "usage: measure-action-view [options]"
   parser.on("--version V", "Herb gem version to measure") { |value| options[:version] = value }
   parser.on("--gem-path PATH", "Load Herb from a working tree instead of an installed gem") { |value| options[:gem_path] = value }
-  parser.on("--actionview-version V", "ActionView version to use (default: 8.1.4)") { |value| options[:actionview_version] = value }
+  parser.on("--actionview-path PATH", "Load ActionView from this Bundler checkout") { |value| options[:actionview_path] = value }
+  parser.on("--activesupport-path PATH", "Load ActiveSupport from this Bundler checkout") { |value| options[:activesupport_path] = value }
+  parser.on("--actionview-ref SHA", "Locked Rails revision for the report") { |value| options[:actionview_ref] = value }
   parser.on("--label TEXT", "How to name this run (default: released Herb version)") { |value| options[:label] = value }
   parser.on("--corpus DIR", "Directory of template files (default: erb/)") { |value| options[:root] = File.expand_path(value) }
   parser.on("--files FILE", "Newline-delimited relative paths to measure") { |value| options[:files] = value }
@@ -41,6 +45,7 @@ OptionParser.new do |parser|
 end.parse!
 
 abort "give exactly one of --version or --gem-path" if options[:version].nil? == options[:gem_path].nil?
+abort "give --actionview-path and --activesupport-path" unless options[:actionview_path] && options[:activesupport_path]
 abort "--rounds must be positive" unless options[:rounds].positive?
 abort "--warmups cannot be negative" if options[:warmups].negative?
 
@@ -55,7 +60,8 @@ else
   gem "herb", options[:version]
 end
 
-gem "actionview", options[:actionview_version]
+$LOAD_PATH.unshift(File.join(File.expand_path(options[:actionview_path]), "lib")) if options[:actionview_path]
+$LOAD_PATH.unshift(File.join(File.expand_path(options[:activesupport_path]), "lib")) if options[:activesupport_path]
 
 require "herb"
 require "herb/engine"
@@ -63,87 +69,11 @@ require "action_view"
 require "action_view/base"
 require "action_view/template/handlers/erb"
 require "action_view/template/handlers/erb/erubi"
-
-# Mirrors ActionView::Template::Handlers::ERB::Herb. Keeping the adapter here
-# lets released ActionView versions benchmark the production handler before the
-# Rails release that includes it.
-class ActionViewProductionHerb < Herb::Engine
-  def initialize(input, properties = {})
-    @newline_pending = 0
-    properties = Hash[properties]
-
-    properties[:bufvar] ||= "@output_buffer"
-    properties[:preamble] ||= ""
-    properties[:postamble] ||= properties[:bufvar]
-    properties[:freeze_template_literals] = !ActionView::Template.frozen_string_literal
-    properties[:escapefunc] = ""
-    properties[:attrfunc] = nil
-    properties[:jsfunc] = nil
-    properties[:cssfunc] = nil
-
-    super
-  end
-
-private
-
-  def add_text(text)
-    return if text.empty?
-
-    if text == "\n"
-      @newline_pending += 1
-    else
-      with_buffer do
-        src << ".safe_append='"
-        src << "\n" * @newline_pending if @newline_pending.positive?
-        src << text.gsub(/['\\]/, '\\\\\&') << @text_end
-      end
-      @newline_pending = 0
-    end
-  end
-
-  def add_expression_block(indicator, code)
-    add_expression(indicator, code, block: true)
-  end
-
-  def add_expression(indicator, code, block: false)
-    flush_newline_if_pending(src)
-
-    with_buffer do
-      if indicator == "==" || @escape
-        src << ".safe_expr_append="
-      else
-        src << ".append="
-      end
-
-      if block
-        src << " " << code
-      else
-        src << "(" << code << trailing_newline(code) << ")"
-      end
-    end
-  end
-
-  def add_code(code)
-    flush_newline_if_pending(src)
-    super
-  end
-
-  def add_postamble(_)
-    flush_newline_if_pending(src)
-    super
-  end
-
-  def flush_newline_if_pending(output)
-    return unless @newline_pending.positive?
-
-    with_buffer { output << ".safe_append='#{"\n" * @newline_pending}" << @text_end }
-    @newline_pending = 0
-  end
-end
+require "action_view/template/handlers/erb/herb"
 
 ENGINES = {
   "erubi" => ActionView::Template::Handlers::ERB::Erubi,
-  "herb" => ActionViewProductionHerb
+  "herb" => ActionView::Template::Handlers::ERB::Herb
 }.freeze
 
 TEMPLATE_GLOB = "**/*.{erb,rhtml,herb}"
@@ -268,6 +198,7 @@ screen_report = {
   "herb_ref" => herb_ref,
   "source" => options[:gem_path] ? "working-tree" : "gem",
   "actionview_version" => ActionView::VERSION::STRING,
+  "actionview_ref" => options[:actionview_ref],
   "ruby_version" => RUBY_VERSION,
   "corpus_commit" => (git_commit.empty? ? nil : git_commit),
   "files_considered" => files.size,

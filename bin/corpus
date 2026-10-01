@@ -1277,14 +1277,33 @@ def action_view_version_slug(version)
   version.gsub(/[^0-9A-Za-z_.-]/, "-")
 end
 
-def measure_action_view(version, gem_path:, files:, rounds:, warmups:, out:, label: nil)
+def rails_main_dependency
+  raise CommandError, "performance must run through bundle exec to load Rails main" unless defined?(Bundler)
+
+  specs = Bundler.load.specs
+  actionview = specs.find { |candidate| candidate.name == "actionview" }
+  activesupport = specs.find { |candidate| candidate.name == "activesupport" }
+
+  raise CommandError, "Rails main is not available; run bundle install" unless actionview && activesupport
+
+  source = actionview.respond_to?(:source) ? actionview.source : nil
+  revision = source.revision if source&.respond_to?(:revision)
+  raise CommandError, "ActionView is not locked to a Rails git revision" unless revision
+
+  [actionview.full_gem_path, activesupport.full_gem_path, revision]
+end
+
+def measure_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, files:, rounds:, warmups:, out:, label: nil)
   args = [
     File.join(ROOT, "bin", "measure-action-view"),
+    "--actionview-path", actionview_path,
+    "--activesupport-path", activesupport_path,
     "--files", files,
     "--rounds", rounds.to_s,
     "--warmups", warmups.to_s,
     "--out", out
   ]
+  args += ["--actionview-ref", actionview_ref] if actionview_ref
   args += version ? ["--version", version] : ["--gem-path", gem_path]
   args += ["--label", label] if label
 
@@ -1293,11 +1312,14 @@ def measure_action_view(version, gem_path:, files:, rounds:, warmups:, out:, lab
   ok or raise CommandError, "ActionView performance measurement failed for #{gem_path || "Herb #{version}"}"
 end
 
-def screen_action_view(version, gem_path:, limit:, out:)
+def screen_action_view(version, gem_path:, actionview_path:, activesupport_path:, actionview_ref:, limit:, out:)
   args = [
     File.join(ROOT, "bin", "measure-action-view"),
+    "--actionview-path", actionview_path,
+    "--activesupport-path", activesupport_path,
     "--screen-out", out
   ]
+  args += ["--actionview-ref", actionview_ref] if actionview_ref
   args += version ? ["--version", version] : ["--gem-path", gem_path]
   args += ["--limit", limit.to_s] if limit
 
@@ -1360,6 +1382,7 @@ def command_performance(argv)
   raise CommandError, "--absolute-budget must be positive" unless absolute_budget.positive?
 
   FileUtils.mkdir_p(PERFORMANCE_RUNS_DIR)
+  actionview_path, activesupport_path, actionview_ref = rails_main_dependency
 
   targets = versions.map do |version|
     { version: version, gem_path: nil, slug: action_view_version_slug(version), label: nil }
@@ -1371,7 +1394,15 @@ def command_performance(argv)
 
   screens = targets.map do |target|
     path = File.join(PERFORMANCE_RUNS_DIR, "#{target[:slug]}-screen.json")
-    screen_action_view(target[:version], gem_path: target[:gem_path], limit: limit, out: path)
+    screen_action_view(
+      target[:version],
+      gem_path: target[:gem_path],
+      actionview_path: actionview_path,
+      activesupport_path: activesupport_path,
+      actionview_ref: actionview_ref,
+      limit: limit,
+      out: path
+    )
     JSON.parse(File.read(path))
   end
 
@@ -1389,6 +1420,9 @@ def command_performance(argv)
     measure_action_view(
       target[:version],
       gem_path: target[:gem_path],
+      actionview_path: actionview_path,
+      activesupport_path: activesupport_path,
+      actionview_ref: actionview_ref,
       files: manifest_path,
       rounds: rounds,
       warmups: warmups,
