@@ -987,12 +987,12 @@ bundle install
 gem install herb -v 0.10.4
 gem install herb -v 0.11.0
 
-bundle exec bin/corpus performance \
+bin/corpus performance \
   --herb 0.10.4 \
   --herb 0.11.0 \
   --fail-on-regression
 
-bundle exec bin/corpus performance \
+bin/corpus performance \
   --herb 0.11.0 \
   --gem-path ../herb \
   --fail-on-regression

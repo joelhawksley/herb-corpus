@@ -1278,7 +1278,8 @@ def action_view_version_slug(version)
 end
 
 def rails_main_dependency
-  raise CommandError, "performance must run through bundle exec to load Rails main" unless defined?(Bundler)
+  require "bundler"
+  Bundler.setup
 
   specs = Bundler.load.specs
   actionview = specs.find { |candidate| candidate.name == "actionview" }
