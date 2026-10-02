@@ -998,6 +998,9 @@ bin/corpus performance \
   --fail-on-regression
 ```
 
+The working tree must be built first with
+`bundle exec rake templates make compile` from the Herb checkout.
+
 `performance` compiles templates through Rails main's production ActionView Erubi and Herb
 handlers. It first finds the files that Erubi and every requested Herb version can compile, then
 measures that exact shared set for every version. Sources are loaded before timing, each engine

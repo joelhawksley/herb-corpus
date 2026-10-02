@@ -1277,6 +1277,25 @@ def action_view_version_slug(version)
   version.gsub(/[^0-9A-Za-z_.-]/, "-")
 end
 
+def validate_herb_working_tree!(path)
+  path = File.expand_path(path)
+  required = [
+    File.join(path, "lib", "herb.rb"),
+    File.join(path, "lib", "herb", "parser_options.rb")
+  ]
+  native_extensions = Dir.glob(File.join(path, "lib", "herb", "{,*/}herb.{bundle,so}"))
+
+  return if required.all? { |file| File.file?(file) } && native_extensions.any?
+
+  raise CommandError, <<~MESSAGE.chomp
+    Herb working tree is not built: #{path}
+    Run:
+      cd #{Shellwords.escape(path)}
+      bundle install
+      bundle exec rake templates make compile
+  MESSAGE
+end
+
 def rails_main_dependency
   require "bundler"
   Bundler.setup
@@ -1381,6 +1400,8 @@ def command_performance(argv)
   raise CommandError, "--warmups cannot be negative" if warmups.negative?
   raise CommandError, "--max-regression cannot be negative" if max_regression.negative?
   raise CommandError, "--absolute-budget must be positive" unless absolute_budget.positive?
+
+  validate_herb_working_tree!(gem_path) if gem_path
 
   FileUtils.mkdir_p(PERFORMANCE_RUNS_DIR)
   actionview_path, activesupport_path, actionview_ref = rails_main_dependency
